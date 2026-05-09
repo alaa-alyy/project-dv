@@ -206,20 +206,6 @@ tab_comparison = html.Div([
             ),
         ], style={"flex": "1 1 320px", "paddingTop": "8px"}),
 
-        html.Div([
-            html.Label("Clustered Bar metric", className="ctrl-label"),
-            dcc.RadioItems(
-                id="cmp-metric",
-                options=[
-                    {"label": "Wage (€)", "value": "wage"},
-                    {"label": "Overall",  "value": "overall"},
-                    {"label": "Both (normalized)", "value": "both"},
-                ],
-                value="both", inline=True,
-                inputStyle={"marginRight": "4px"},
-                style={"marginTop": "6px"},
-            ),
-        ], style={"flex": "1 1 360px"}),
     ], className="ctrl-bar"),
 
     # Row 1 — Column + Bar
@@ -381,10 +367,9 @@ app.layout = html.Div([
     Output("cmp-stk-bar",   "figure"),
     Output("cmp-clust-col", "figure"),
     Output("cmp-clust-bar", "figure"),
-    Input("cmp-topn",   "value"),
-    Input("cmp-metric", "value"),
+    Input("cmp-topn", "value"),
 )
-def update_comparison(top_n: int, metric: str):
+def update_comparison(top_n: int):
     top_n = top_n or 10
 
     # ── 1. Column — Top N clubs by avg overall ────────────────────────────────
@@ -502,76 +487,70 @@ def update_comparison(top_n: int, metric: str):
         .reset_index()
     )
 
-    if metric == "both":
-        # Normalize both to [0, 100] so they share the same axis
-        wage_rating["wage_score"]    = wage_rating["avg_wage"]    / wage_rating["avg_wage"].max()    * 100
-        wage_rating["overall_score"] = wage_rating["avg_overall"] / wage_rating["avg_overall"].max() * 100
-        wage_rating = wage_rating.sort_values("wage_score", ascending=True)
+    # Normalize both to [0, 100] — sort highest at top (ascending for horizontal)
+    wage_rating["wage_score"]    = wage_rating["avg_wage"]    / wage_rating["avg_wage"].max()    * 100
+    wage_rating["overall_score"] = wage_rating["avg_overall"] / wage_rating["avg_overall"].max() * 100
+    wage_rating = wage_rating.sort_values("wage_score", ascending=True)
 
-        clust_bar_fig = go.Figure()
-        clust_bar_fig.add_trace(go.Bar(
-            name="Avg Wage (norm. 0–100)",
-            y=wage_rating["club_name"],
-            x=wage_rating["wage_score"],
-            orientation="h",
-            marker_color="#0ea5e9",
-            text=wage_rating["avg_wage"].apply(lambda v: f"€{v:,.0f}"),
-            textposition="inside",
-            hovertemplate="<b>%{y}</b><br>Avg Wage: %{text}<extra></extra>",
-        ))
-        clust_bar_fig.add_trace(go.Bar(
-            name="Avg Overall (norm. 0–100)",
-            y=wage_rating["club_name"],
-            x=wage_rating["overall_score"],
-            orientation="h",
-            marker_color="#7dd3fc",
-            text=wage_rating["avg_overall"].apply(lambda v: f"{v:.1f}"),
-            textposition="inside",
-            hovertemplate="<b>%{y}</b><br>Avg Overall: %{text}<extra></extra>",
-        ))
-        x_label = "Normalized Score (0 = min, 100 = max)"
+    # Highest-wage club gets a different (green) color — rest get blue shades
+    highest_club = wage_rating["club_name"].iloc[-1]
+    wage_colors    = ["lightgreen" if c == highest_club else "lightblue"  for c in wage_rating["club_name"]]
+    overall_colors = ["seagreen"   if c == highest_club else "steelblue"  for c in wage_rating["club_name"]]
 
-    elif metric == "wage":
-        wage_rating = wage_rating.sort_values("avg_wage", ascending=True)
-        clust_bar_fig = go.Figure()
-        clust_bar_fig.add_trace(go.Bar(
-            name="Avg Wage (€)",
-            y=wage_rating["club_name"],
-            x=wage_rating["avg_wage"],
-            orientation="h",
-            marker_color="#0ea5e9",
-            text=wage_rating["avg_wage"].apply(lambda v: f"€{v:,.0f}"),
-            textposition="inside",
-            hovertemplate="<b>%{y}</b><br>%{text}<extra></extra>",
-        ))
-        x_label = "Average Wage (€)"
-
-    else:  # overall
-        wage_rating = wage_rating.sort_values("avg_overall", ascending=True)
-        clust_bar_fig = go.Figure()
-        clust_bar_fig.add_trace(go.Bar(
-            name="Avg Overall Rating",
-            y=wage_rating["club_name"],
-            x=wage_rating["avg_overall"],
-            orientation="h",
-            marker_color="#7dd3fc",
-            text=wage_rating["avg_overall"].apply(lambda v: f"{v:.1f}"),
-            textposition="inside",
-            hovertemplate="<b>%{y}</b><br>Overall: %{text}<extra></extra>",
-        ))
-        x_label = "Average Overall Rating"
+    clust_bar_fig = go.Figure()
+    clust_bar_fig.add_trace(go.Bar(
+        name="Avg Wage",
+        y=wage_rating["club_name"],
+        x=wage_rating["wage_score"],
+        orientation="h",
+        marker_color=wage_colors,
+        text=wage_rating["avg_wage"].apply(lambda v: f"€{v:,.0f}"),
+        textposition="outside",
+        textfont=dict(color="black"),
+        hovertemplate="<b>%{y}</b><br>Avg Wage: %{text}<extra></extra>",
+    ))
+    clust_bar_fig.add_trace(go.Bar(
+        name="Avg Overall",
+        y=wage_rating["club_name"],
+        x=wage_rating["overall_score"],
+        orientation="h",
+        marker_color=overall_colors,
+        text=wage_rating["avg_overall"].apply(lambda v: f"{v:.1f}"),
+        textposition="outside",
+        textfont=dict(color="black"),
+        hovertemplate="<b>%{y}</b><br>Avg Overall: %{text}<extra></extra>",
+    ))
 
     clust_bar_fig.update_layout(
         barmode="group",
-        title=f"Clustered Bar — Avg Wage vs Avg Rating  (Top {top_n} Clubs)",
-        xaxis_title=x_label,
-        yaxis_title="Club",
+        title=dict(
+            text=f"Avg Wage vs Avg Rating — Top {top_n} Clubs Side-by-Side",
+            font=dict(color="black"),
+            x=0.5,
+        ),
+        xaxis=dict(
+            title=dict(text="Normalized Score (0 = min, 100 = max)", font=dict(color="black")),
+            range=[0, 145],
+            showgrid=True, gridcolor="lightgrey",
+            showline=True, linecolor="black", mirror=True,
+            tickfont=dict(color="black"),
+        ),
+        yaxis=dict(
+            title=dict(text="Club", font=dict(color="black")),
+            showline=True, linecolor="black", mirror=True,
+            tickfont=dict(color="black"),
+        ),
+        shapes=[dict(type="rect", xref="paper", yref="paper",
+                     x0=0, y0=0, x1=1, y1=1,
+                     line=dict(color="black", width=2))],
+        legend=dict(
+            x=0.99, y=0.99, xanchor="right", yanchor="top",
+            bgcolor="white", bordercolor="black", borderwidth=1,
+            font=dict(color="black"),
+        ),
+        plot_bgcolor="white", paper_bgcolor="white",
         template=TEMPLATE,
         height=H,
-        legend=dict(
-            x=0.98, y=0.02, xanchor="right",
-            bgcolor="white", bordercolor="#ddd", borderwidth=1,
-        ),
     )
 
     return col_fig, bar_fig, stk_col_fig, stk_bar_fig, clust_col_fig, clust_bar_fig
