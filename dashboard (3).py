@@ -940,9 +940,9 @@ def update_distribution(position, metric):
             x=[pos] * len(pos_data),
             y=pos_data,
             name=pos,
-            # Rule 7: lightblue silhouette
+            # Rule 7: lightblue silhouette fill, black outline/whiskers
             fillcolor="lightblue",
-            line_color="lightblue",
+            line_color="black",          # black IQR box outline, whiskers, and violin border
             opacity=0.75,
             # Rule 7: white-filled IQR box, black outline & whiskers
             box_visible=True,
@@ -988,13 +988,14 @@ def update_distribution(position, metric):
         shapes=[dict(type="rect", xref="paper", yref="paper",
                      x0=0, y0=0, x1=1, y1=1,
                      line=dict(color="black", width=2))],
-        # Rule 5: legend top-right inside border
+        # Rule 5: legend top-right inside border, in the free space right of violins
         legend=dict(
             title=dict(text="Position", font=dict(color="black")),
             x=0.98, y=0.98, xanchor="right", yanchor="top",
             bordercolor="black", borderwidth=1, bgcolor="white",
             font=dict(color="black"),
         ),
+        margin=dict(r=160),
         showlegend=True,
         height=H,
     )
